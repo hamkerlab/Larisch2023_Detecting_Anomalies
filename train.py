@@ -211,7 +211,6 @@ def train():
     )
 
     print(cct_model.summary())
-    return -1
 
     
     ## additional callback to log, to use it later in tensorboard

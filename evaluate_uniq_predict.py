@@ -12,7 +12,7 @@ from matplotlib.ticker import LogFormatter
 
 from cct import create_cct_model
 from transformers import BertTokenizer
-from misc import *
+
 from tqdm import tqdm
 
 import os
@@ -20,6 +20,7 @@ import tensorflow as tf
 import pandas as pd
 import tensorflow_addons as tfa
 from custom_loader import deTokenize
+from delete_redundant import compare
 
 def main():
 
@@ -54,9 +55,15 @@ def main():
     mask_id = ids[1]
     print('Mask ID: ',mask_id)
     ##load the preprocessed Dataset
-    x_test = np.load('/scratch/laren/deepL/data/BGL_masked_Xtest_conv5_4_uniq.npy')
-    labels = np.load('/scratch/laren/deepL/data/BGL_masked_Ytest_conv5_4_uniq.npy')
-
+    #### check if it exists. If not, create it
+    if os.path.isfile('./data/BGL_masked_Xtest_uniq.npy'):
+        print('Test dataset already prepared')
+        x_test = np.load('./data/BGL_masked_Xtest_uniq.npy')
+        labels = np.load('./data/BGL_masked_Ytest_uniq.npy')
+    else:
+        compare() # remove samples from the test dataset, which are in the train dataset
+        x_test = np.load('./data/BGL_masked_Xtest_uniq.npy')
+        labels = np.load('./data/BGL_masked_Ytest_uniq.npy')
     #print(bert_tokenizer.decode([101,103,102]))
     #print(bert_tokenizer.decode([-1,0,1]))
         
@@ -104,27 +111,12 @@ def main():
     cct_model.load_weights(checkpoint_path)
     print(cct_model.summary())
 
-    print(np.shape(x_test), np.shape(y_test), np.shape(labels))
 
     good_true = np.where(labels == 0)[0]
     bad_true = np.where(labels == 1)[0]
 
-    """    
-    predicts = cct_model.predict(x_test[bad_true[0:10]])
-    print(np.shape(predicts))
-    plt.figure()
-    plt.hist(np.ndarray.flatten(predicts[0,0]))
-    plt.savefig('test_softmax_bad')
- 
-    """
-    print(bad_true[0:10])
-    #for i in range(len(bad_true[0:10])):
-    #    print(predicts[i])    
-    #    print(y_test[bad_true[i]])
-    #    print('--------------')
 
-
-    ## because of memory issues, make predictions in 1000' chunks
+    ## because of memory issues, make predictions in chunks
     chunk_size = 750
     n_samples = len(x_test)
 
@@ -176,8 +168,8 @@ class MidPointLogNorm(LogNorm):
 
 def measure():
 
-    x_test = np.load('/scratch/laren/deepL/data/BGL_masked_Xtest_conv5_4_uniq.npy')
-    labels = np.load('/scratch/laren/deepL/data/BGL_masked_Ytest_conv5_4_uniq.npy')
+    x_test = np.load('./data/BGL_masked_Xtest_uniq.npy')
+    labels = np.load('./data/BGL_masked_Ytest_uniq.npy')
 
     x_logit = np.load('x_test_Predictions_uniq.npy')
 
@@ -318,7 +310,7 @@ def measure():
 
 
 if __name__ == "__main__":
-    main()
+    #main()
     measure()
 
 
