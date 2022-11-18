@@ -28,3 +28,9 @@
 - train.py: Start the training of the CCT on the training data
 - create_uniqe: Function to remove samples from the test set, which are in training set
 
+### Data
+ A pretrained model von Blue Gene/L data set with $4\times4$ convolutional kernels and a preprocessed Blue Gene/L training and test set can be found under:
+
+10.5281/zenodo.7220404
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7220404.svg)](https://doi.org/10.5281/zenodo.7220404)
