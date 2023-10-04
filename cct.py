@@ -21,6 +21,7 @@ import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
 
+### de-commenting this part, if you want to use GPU and commenting the two lines above
 """
 gpus = tf.config.list_physical_devices('GPU')
 print('GPUS: ', gpus)
