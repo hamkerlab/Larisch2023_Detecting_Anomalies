@@ -1,5 +1,7 @@
 import matplotlib as mp
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+
 from cct import create_cct_model
 from transformers import BertTokenizer
 
@@ -14,10 +16,20 @@ from tqdm import tqdm
 
 import os
 
+class MidPointLogNorm(LogNorm):
+    def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
+        LogNorm.__init__(self, vmin=vmin, vmax=vmax, clip=clip)
+        self.midpoint = midpoint
+
+    def __call__(self, value, clip=None):
+        x,y = [np.log(self.vmin), np.log(self.midpoint), np.log(self.vmax)], [0, 0.5, 1]
+        return np.ma.masked_array(np.interp(np.log(value), x, y))
 
 def get_logits():
         
     tf.random.set_seed(314)
+
+    checkpoint_path = "./model/cct_model.hdf5"
 
     ## Hyperparameters and constants for the CCT
     positional_emb = True
@@ -145,58 +157,58 @@ def createValidationTest():
     if not os.path.isfile('./work/x_test_Predictions_uniq.npy'):
         ## if not, get the logit scores
         get_logits()
-    else: ## if process with evaluation
-        ## load test data and corresponding logit scores 
-        x_test = np.load('./data/BGL_masked_Xtest_uniq.npy')
-        labels = np.load('./data/BGL_masked_Ytest_uniq.npy')
-        x_logit = np.load('x_test_Predictions_uniq.npy')
 
-        ## split with 20% val and 80% test
+    ## load test data and corresponding logit scores 
+    x_test = np.load('./data/BGL_masked_Xtest_uniq.npy')
+    labels = np.load('./data/BGL_masked_Ytest_uniq.npy')
+    x_logit = np.load('./work/x_test_Predictions_uniq.npy')
 
-        n_samples = len(x_test)
-        val_samp = int(n_samples*0.2)
-        test_samp = int(n_samples*0.8)
+    ## split with 20% val and 80% test
 
-        ## validation set
-        val_X = x_test[0:val_samp]
-        val_log = x_logit[0:val_samp]
-        val_Y = labels[0:val_samp]
+    n_samples = len(x_test)
+    val_samp = int(n_samples*0.2)
+    test_samp = int(n_samples*0.8)
+
+    ## validation set
+    val_X = x_test[0:val_samp]
+    val_log = x_logit[0:val_samp]
+    val_Y = labels[0:val_samp]
         
-        ## test set
-        test_X = x_test[val_samp:]
-        test_log = x_logit[val_samp:]
-        test_Y = labels[val_samp:]
+    ## test set
+    test_X = x_test[val_samp:]
+    test_log = x_logit[val_samp:]
+    test_Y = labels[val_samp:]
 
-        ### check for identical samples between validation and test set 
-        ### and sort identical pairs out of the testset
-        identical_sum = np.sum(( val_X[0] == val_X[0])*1)
-        for i in tqdm(range(len(val_X)), ncols=80):
-            compare = ( val_X[i] == test_X)*1
-            compare = np.asarray(compare)
-            sum_identicals = np.sum(np.sum(compare, axis=1),axis=1)
-            idx_identicals = np.where(sum_identicals == identical_sum )[0]
-            idx_notIdentical = np.where(sum_identicals != identical_sum )[0]
-            if len(idx_identicals) > 0:
-                new_testX    = np.copy(test_X[idx_notIdentical])
-                new_test_log = np.copy(test_log[idx_notIdentical])
-                new_test_Y   = np.copy(test_Y[idx_notIdentical])
-            else:
-                new_testX = np.copy(test_X) # nothing to do
-                new_test_log = np.copy(test_log)
-                new_test_Y = np.copy(test_Y)
-            ## set the new values
-            test_X   = np.asarray(new_testX)
-            test_log = np.asarray(new_test_log)
-            test_Y   = np.asarray(new_test_Y)
+    ### check for identical samples between validation and test set 
+    ### and sort identical pairs out of the testset
+    identical_sum = np.sum(( val_X[0] == val_X[0])*1)
+    for i in tqdm(range(len(val_X)), ncols=80):
+        compare = ( val_X[i] == test_X)*1
+        compare = np.asarray(compare)
+        sum_identicals = np.sum(np.sum(compare, axis=1),axis=1)
+        idx_identicals = np.where(sum_identicals == identical_sum )[0]
+        idx_notIdentical = np.where(sum_identicals != identical_sum )[0]
+        if len(idx_identicals) > 0:
+            new_testX    = np.copy(test_X[idx_notIdentical])
+            new_test_log = np.copy(test_log[idx_notIdentical])
+            new_test_Y   = np.copy(test_Y[idx_notIdentical])
+        else:
+            new_testX = np.copy(test_X) # nothing to do
+            new_test_log = np.copy(test_log)
+            new_test_Y = np.copy(test_Y)
+        ## set the new values
+        test_X   = np.asarray(new_testX)
+        test_log = np.asarray(new_test_log)
+        test_Y   = np.asarray(new_test_Y)
 
 
-        ### save the final validation and test set
-        np.save('./work/val_X',val_X)
-        np.save('./work/val_log',val_log)
-        np.save('./work/val_Y',val_Y)
-        np.save('./work/test_X',test_X)
-        np.save('./work/test_log',test_log)
-        np.save('./work/test_Y',test_Y)
+    ### save the final validation and test set
+    np.save('./work/val_X',val_X)
+    np.save('./work/val_log',val_log)
+    np.save('./work/val_Y',val_Y)
+    np.save('./work/test_X',test_X)
+    np.save('./work/test_log',test_log)
+    np.save('./work/test_Y',test_Y)
 
 def evaluate_automaticThreshold():
 
@@ -429,7 +441,7 @@ def create_plots():
         act_y = y_test[good_samples[n]]
         act_y = act_y[act_y>0]
         act_string = deTokenize(y_test[good_samples[n]], start_t, end_t)
-        comp = x_logit[good_samples[n]]
+        comp = test_log[good_samples[n]]
         comp = comp[y_test[good_samples[n]]>0]
         comp = comp[1:-1] # throw the first and last token away
         y_pos = n_samples-n
@@ -443,9 +455,6 @@ def create_plots():
     plt.ylim(0,n_samples)
     plt.xlim(0,x_pos)
     sm = plt.cm.ScalarMappable(cmap=cmap, norm = norm)
-    sm.set_array([])
-    formatter = LogFormatter(10, labelOnlyBase=False) 
-    #cb = mp.colorbar.ColorbarBase(ax, cmap=cmap, norm=norm, orientation='horizontal')
     plt.colorbar(sm, location='bottom', orientation='horizontal', shrink = 0.75, anchor=(0.5, .9),pad=0.005) 
     plt.savefig('good_strings_uniq',bbox_inches='tight')
 
@@ -455,7 +464,7 @@ def create_plots():
         act_y = y_test[bad_samples[n]]
         act_y = act_y[act_y>0]
         act_string = deTokenize(y_test[bad_samples[n]], start_t, end_t)
-        comp = x_logit[bad_samples[n]]
+        comp = test_log[bad_samples[n]]
         comp = comp[y_test[bad_samples[n]]>0]
         comp = comp[1:-1] # throw the first and last token away
         y_pos = n_samples-n-0.5
@@ -468,10 +477,9 @@ def create_plots():
     plt.ylim(0,n_samples)
     plt.xlim(0,x_pos)
     sm = plt.cm.ScalarMappable(cmap=cmap, norm = norm)
-    sm.set_array([])
-    #cb = mp.colorbar.ColorbarBase(ax, cmap=cmap, norm=norm, orientation='horizontal')
     plt.colorbar(sm, location='bottom', orientation='horizontal', shrink = 0.5, anchor=(0.5, .9),pad=0.005)   
     plt.savefig('bad_strings_uniq',bbox_inches='tight')
+
 
 def main():
 
@@ -494,4 +502,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main():
+    main()
